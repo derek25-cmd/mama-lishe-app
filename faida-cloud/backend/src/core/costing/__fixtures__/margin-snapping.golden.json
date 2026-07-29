@@ -1,0 +1,18 @@
+{
+  "exactMultiple": {
+    "costPerPlateTzs": 3000,
+    "recommendedPriceTzs": 5000
+  },
+  "needsSnapUp": {
+    "costPerPlateTzs": 4675,
+    "recommendedPriceTzs": 8000
+  },
+  "zeroMargin": {
+    "costPerPlateTzs": 4115,
+    "recommendedPriceTzs": 4500
+  },
+  "highMargin": {
+    "costPerPlateTzs": 1000,
+    "recommendedPriceTzs": 5500
+  }
+}

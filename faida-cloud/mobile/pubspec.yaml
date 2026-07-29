@@ -1,0 +1,30 @@
+name: faida_mobile
+description: Faida mobile app (Mama Lishe)
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  dio: ^5.7.0
+  flutter_riverpod: ^2.6.1
+  flutter_secure_storage: ^9.2.2
+  firebase_core: ^3.8.0
+  firebase_messaging: ^15.1.5
+  drift: ^2.22.1
+  sqlite3_flutter_libs: ^0.5.27
+  path_provider: ^2.1.5
+  path: ^1.9.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  drift_dev: ^2.22.1
+  build_runner: ^2.4.13
+
+flutter:
+  uses-material-design: true

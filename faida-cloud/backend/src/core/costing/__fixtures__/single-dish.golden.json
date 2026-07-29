@@ -1,0 +1,79 @@
+{
+  "shoppingList": [
+    {
+      "ingredientId": "meat",
+      "canonicalQty": 18000,
+      "roundedQty": 18000,
+      "displayUnit": "kg",
+      "displayQty": 18,
+      "pricePerKgTzs": 12000,
+      "confidence": "high",
+      "source": "market",
+      "costTzs": 216000
+    },
+    {
+      "ingredientId": "oil",
+      "canonicalQty": 3000,
+      "roundedQty": 3000,
+      "displayUnit": "chupa",
+      "displayQty": 2,
+      "bottles": [
+        {
+          "sizeMl": 2000,
+          "count": 1
+        },
+        {
+          "sizeMl": 1000,
+          "count": 1
+        }
+      ],
+      "pricePerKgTzs": 6500,
+      "confidence": "medium",
+      "source": "market",
+      "costTzs": 19500
+    },
+    {
+      "ingredientId": "onion",
+      "canonicalQty": 6000,
+      "roundedQty": 6000,
+      "displayUnit": "fungu",
+      "displayQty": 24,
+      "pricePerKgTzs": 1500,
+      "confidence": "high",
+      "source": "market",
+      "costTzs": 9000
+    },
+    {
+      "ingredientId": "pilau_masala",
+      "canonicalQty": 600,
+      "roundedQty": 300,
+      "displayUnit": "kiasi",
+      "displayQty": 1,
+      "pricePerKgTzs": 8000,
+      "confidence": "medium",
+      "source": "market",
+      "costTzs": 2400
+    },
+    {
+      "ingredientId": "rice",
+      "canonicalQty": 12000,
+      "roundedQty": 12000,
+      "displayUnit": "kg",
+      "displayQty": 12,
+      "pricePerKgTzs": 2800,
+      "confidence": "high",
+      "source": "market",
+      "costTzs": 33600
+    }
+  ],
+  "totalCostTzs": 280500,
+  "dishes": [
+    {
+      "recipeId": "pilau_ya_nyama",
+      "plates": 60,
+      "costTzs": 280500,
+      "costPerPlateTzs": 4675,
+      "recommendedPriceTzs": 8000
+    }
+  ]
+}
