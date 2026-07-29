@@ -3,5 +3,8 @@ node_modules/
 .env
 *.log
 coverage/
+*.tsbuildinfo
 .dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
 build/
