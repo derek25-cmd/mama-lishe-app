@@ -27,12 +27,20 @@ services:
       NODE_ENV: production
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
+      # Docker auto-injects HOSTNAME=<container-id>; Next's standalone
+      # server.js binds to that literal value instead of all interfaces,
+      # so both the healthcheck and nginx's proxy_pass fail to connect
+      # unless this is forced back to 0.0.0.0.
+      HOSTNAME: "0.0.0.0"
     networks: [internal]
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/v1/health"]
+      # 127.0.0.1, not localhost: "localhost" resolves ::1 first in this
+      # image, and Node's 0.0.0.0 bind is IPv4-only, so the IPv6 attempt
+      # gets refused before wget falls back to IPv4.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/v1/health"]
       interval: 30s
       timeout: 5s
       retries: 3

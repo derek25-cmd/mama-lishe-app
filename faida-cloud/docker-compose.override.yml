@@ -1,0 +1,14 @@
+# Auto-loaded by `docker compose` alongside docker-compose.yml.
+# Swaps in the plain-HTTP nginx config for local/no-domain deployment
+# (no certbot certs yet). Delete this file once a real domain + TLS
+# certs are in place, and docker-compose.yml's own nginx.conf (with the
+# 443 blocks) takes over.
+services:
+  nginx:
+    # Compose merges list fields (ports/volumes) with the base file by
+    # default rather than replacing them — !override forces a true
+    # replacement so 443 isn't published and the certbot_certs mount
+    # (unused here) is dropped.
+    ports: !override ["80:80"]
+    volumes: !override
+      - ./nginx/nginx.local.conf:/etc/nginx/nginx.conf:ro

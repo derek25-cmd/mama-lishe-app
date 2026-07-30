@@ -18,3 +18,14 @@ Before first deploy: replace `api.your-domain.com` and `grafana.your-domain.com`
 real domains everywhere in `nginx.conf`, and obtain certs for both
 (`certbot certonly --webroot ...`) before nginx will start cleanly with the 443 blocks
 enabled.
+
+## No domain yet? Use the local override
+
+`nginx.conf` will crash-loop (`cannot load certificate ... no such file or directory`) if
+the certbot certs it references don't exist — which is the case until a domain is
+registered and pointed at this server. Until then, `docker-compose.override.yml` (repo
+root, auto-loaded by `docker compose` whenever it's present) swaps in
+`nginx/nginx.local.conf` instead: same gzip/security headers/rate limiting/`/healthz`
+routing, just plain HTTP on port 80, no TLS. Delete `docker-compose.override.yml` once
+real certs exist and `docker compose up -d` picks the production `nginx.conf` back up
+automatically.
