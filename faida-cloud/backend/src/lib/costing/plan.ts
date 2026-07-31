@@ -9,9 +9,12 @@ import {
   loadForecasts,
   loadUnitTable,
   loadIngredientMeta,
+  type CacheStats,
 } from "@/lib/costing/repository";
 import { costPlan } from "@/core/costing/costPlan";
 import type { CostingResult, PlanItem } from "@/core/costing/types";
+import { costingDurationSeconds, costingMissingPriceTotal, costingStalePricesTotal } from "@/lib/costing/metrics";
+import { logCostingRequest } from "@/lib/costing/log";
 
 export const PlanItemBody = z.object({
   recipe: z.string().min(1),
@@ -70,6 +73,8 @@ export async function computePlanCosting(
   items: { recipe: string; plates: number }[],
   targetMarginPct: number | undefined,
 ): Promise<{ result: CostingResult; vendor: VendorLocationRow }> {
+  const startedAt = process.hrtime.bigint();
+
   const vendor = await withVendorContext(ctx, async (client: PoolClient) => {
     const row = await client.query<VendorLocationRow>(
       `select market_id, region_id, target_margin_pct from vendor.vendors where id = $1`,
@@ -86,12 +91,18 @@ export async function computePlanCosting(
 
   const weekStart = currentWeekStart();
 
+  // Every cache-aside lookup on the request path reports into this shared
+  // counter (repository.ts's loaders are given the same object) so the
+  // duration metric below can be labelled cache_hit — "warm" means every
+  // one of them hit, not just some.
+  const cacheStats: CacheStats = { hits: 0, misses: 0 };
+
   const [priceSnapshot, regionSnapshot, forecastSnapshot, unitTable, ingredientMeta] = await Promise.all([
-    loadPriceSnapshot(vendor.market_id, weekStart),
+    loadPriceSnapshot(vendor.market_id, weekStart, cacheStats),
     vendor.region_id ? loadRegionSnapshot(vendor.region_id, weekStart) : Promise.resolve({}),
     loadForecasts(vendor.market_id, weekStart),
-    loadUnitTable(vendor.market_id),
-    loadIngredientMeta(),
+    loadUnitTable(vendor.market_id, cacheStats),
+    loadIngredientMeta(cacheStats),
   ]);
 
   const planItems: PlanItem[] = items.map((item) => {
@@ -104,6 +115,28 @@ export async function computePlanCosting(
     { items: planItems, target_margin_pct: targetMarginPct ?? vendor.target_margin_pct },
     { priceSnapshot, regionSnapshot, forecastSnapshot, unitTable, ingredientMeta },
   );
+
+  const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+  const cacheHit = cacheStats.misses === 0;
+  const freshness = priceFreshness(result.price_week);
+
+  costingDurationSeconds.observe({ cache_hit: String(cacheHit) }, durationMs / 1000);
+  for (const warning of result.warnings) {
+    if (warning.code === "MISSING_PRICE" && warning.ingredient_id) {
+      costingMissingPriceTotal.inc({ ingredient: warning.ingredient_id });
+    }
+  }
+  if (freshness?.is_stale) costingStalePricesTotal.inc();
+
+  logCostingRequest({
+    vendorId: ctx.vendorId,
+    marketId: vendor.market_id,
+    dishCount: items.length,
+    plates: items.reduce((sum, i) => sum + i.plates, 0),
+    priceWeek: result.price_week,
+    durationMs,
+    cacheHit,
+  });
 
   return { result, vendor };
 }

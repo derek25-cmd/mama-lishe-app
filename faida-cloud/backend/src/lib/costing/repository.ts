@@ -29,15 +29,30 @@ function unitsCacheKey(marketId: string): string {
 }
 const INGREDIENT_META_CACHE_KEY = "meta:ingredients";
 
+// Optional hit/miss counter a caller can pass through the three cached
+// loaders below — used by Task 6's costing_duration_seconds{cache_hit}
+// metric to tell a warm request from a cold one. Omitting it (every
+// existing call site) costs nothing extra; it's purely additive.
+export interface CacheStats {
+  hits: number;
+  misses: number;
+}
+
 // Cache is an optimization, never a dependency: any Redis error is logged
 // and treated as a miss so a Redis outage degrades to "every request hits
 // Postgres," not "costing breaks."
-async function cacheGet<T>(key: string): Promise<T | null> {
+async function cacheGet<T>(key: string, stats?: CacheStats): Promise<T | null> {
   try {
     const raw = await redis.get(key);
-    return raw ? (JSON.parse(raw) as T) : null;
+    if (raw) {
+      if (stats) stats.hits++;
+      return JSON.parse(raw) as T;
+    }
+    if (stats) stats.misses++;
+    return null;
   } catch (err) {
     logger.warn({ err, key }, "cache read failed, falling through to postgres");
+    if (stats) stats.misses++;
     return null;
   }
 }
@@ -187,9 +202,13 @@ interface MarketPriceRow {
   week_start: string;
 }
 
-export async function loadPriceSnapshot(marketId: string, weekStart: string): Promise<PriceSnapshot> {
+export async function loadPriceSnapshot(
+  marketId: string,
+  weekStart: string,
+  stats?: CacheStats,
+): Promise<PriceSnapshot> {
   const cacheKey = priceCacheKey(marketId, weekStart);
-  const cached = await cacheGet<PriceSnapshot>(cacheKey);
+  const cached = await cacheGet<PriceSnapshot>(cacheKey, stats);
   if (cached) return cached;
 
   const rows = await query<MarketPriceRow>(
@@ -279,9 +298,9 @@ interface UnitRow {
 // default (market_id is null) for the same ingredient/unit name; DISTINCT
 // ON picks the first row per (ingredient_id, unit_name_sw) once ordered so
 // market-specific sorts first. Only currently-valid rows are considered.
-export async function loadUnitTable(marketId: string): Promise<UnitTable> {
+export async function loadUnitTable(marketId: string, stats?: CacheStats): Promise<UnitTable> {
   const cacheKey = unitsCacheKey(marketId);
-  const cached = await cacheGet<UnitTable>(cacheKey);
+  const cached = await cacheGet<UnitTable>(cacheKey, stats);
   if (cached) return cached;
 
   const rows = await query<UnitRow>(
@@ -312,8 +331,8 @@ interface IngredientMetaRow {
   canonical_unit: "g" | "ml";
 }
 
-export async function loadIngredientMeta(): Promise<IngredientMeta> {
-  const cached = await cacheGet<IngredientMeta>(INGREDIENT_META_CACHE_KEY);
+export async function loadIngredientMeta(stats?: CacheStats): Promise<IngredientMeta> {
+  const cached = await cacheGet<IngredientMeta>(INGREDIENT_META_CACHE_KEY, stats);
   if (cached) return cached;
 
   const rows = await query<IngredientMetaRow>(
