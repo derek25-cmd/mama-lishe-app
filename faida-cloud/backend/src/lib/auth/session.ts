@@ -118,11 +118,13 @@ export async function rotateRefreshToken(presentedToken: string): Promise<Refres
 
   await query(`update vendor.refresh_tokens set rotated_at = now() where id = $1`, [row.id]);
 
-  const vendorRow = await queryOne<{ id: string; role: string; market_id: string | null }>(
+  // vendor_id is a foreign key into vendor.vendors with no ON DELETE CASCADE
+  // — a row referenced by a refresh token can't have been deleted out from
+  // under it, so this can't come back empty.
+  const [vendorRow] = await query<{ id: string; role: string; market_id: string | null }>(
     `select id, role, market_id from vendor.vendors where id = $1`,
     [row.vendor_id],
   );
-  if (!vendorRow) return { ok: false, reason: "invalid" };
 
   const refreshToken = generateOpaqueToken();
   const expiresAt = new Date(Date.now() + REFRESH_TTL_DAYS * 24 * 60 * 60 * 1000);
@@ -133,9 +135,9 @@ export async function rotateRefreshToken(presentedToken: string): Promise<Refres
   );
 
   const accessToken = await signAccessToken({
-    sub: vendorRow.id,
-    role: vendorRow.role,
-    marketId: vendorRow.market_id,
+    sub: vendorRow!.id,
+    role: vendorRow!.role,
+    marketId: vendorRow!.market_id,
     scope: row.oauth_scope ?? undefined,
   });
 

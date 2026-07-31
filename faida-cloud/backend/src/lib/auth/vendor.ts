@@ -1,4 +1,4 @@
-import { queryOne } from "@/lib/db";
+import { query, queryOne } from "@/lib/db";
 
 export interface VendorRecord {
   id: string;
@@ -15,14 +15,16 @@ export async function findOrCreateVendorByPhone(phone: string): Promise<VendorRe
   );
   if (existing) return existing;
 
-  const inserted = await queryOne<VendorRecord>(
+  // INSERT ... RETURNING always yields exactly one row on success (or the
+  // query itself throws) — no need to defend against a row that can't fail
+  // to come back.
+  const [inserted] = await query<VendorRecord>(
     `insert into vendor.vendors (id, phone, display_name, business_type, role, status)
      values (gen_random_uuid(), $1, $1, 'mama_lishe', 'vendor', 'pending_onboarding')
      returning id, phone, role, market_id, status`,
     [phone],
   );
-  if (!inserted) throw new Error("failed to create vendor row");
-  return inserted;
+  return inserted!;
 }
 
 export async function getVendorById(vendorId: string): Promise<VendorRecord | null> {

@@ -14,6 +14,11 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      # Testcontainers needs Docker, which GitHub's ubuntu-latest runners
+      # provide out of the box — no service containers to declare here.
+      # CI-blocking per Phase 2 spec: reuse detection, brute-force lockout,
+      # rate limiting, device cap, and the RLS proof all live in this run.
+      - run: npm run test:auth
   flutter:
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: mobile } }
