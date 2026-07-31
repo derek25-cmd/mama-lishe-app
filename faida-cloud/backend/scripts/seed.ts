@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { db, closeDb } from "../src/lib/db.js";
+import { query, queryOne, closePool } from "../src/lib/db.js";
 import { readSheetRows } from "./lib/xlsx.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -33,18 +33,14 @@ interface UnitRow {
 }
 
 async function seedRegion(): Promise<string> {
-  const existing = await db()
-    .selectFrom("ref.regions")
-    .select("id")
-    .where("code", "=", "DSM")
-    .executeTakeFirst();
+  const existing = await queryOne<{ id: string }>("select id from ref.regions where code = $1", ["DSM"]);
   if (existing) return existing.id;
 
-  const inserted = await db()
-    .insertInto("ref.regions")
-    .values({ name: "Dar es Salaam", code: "DSM" })
-    .returning("id")
-    .executeTakeFirstOrThrow();
+  const inserted = await queryOne<{ id: string }>(
+    "insert into ref.regions (name, code) values ($1, $2) returning id",
+    ["Dar es Salaam", "DSM"],
+  );
+  if (!inserted) throw new Error("failed to insert ref.regions row");
   return inserted.id;
 }
 
@@ -53,21 +49,19 @@ async function seedMarkets(regionId: string): Promise<Map<string, string>> {
   const map = new Map<string, string>();
 
   for (const name of names) {
-    const existing = await db()
-      .selectFrom("ref.markets")
-      .select("id")
-      .where("name", "=", name)
-      .where("region_id", "=", regionId)
-      .executeTakeFirst();
+    const existing = await queryOne<{ id: string }>(
+      "select id from ref.markets where name = $1 and region_id = $2",
+      [name, regionId],
+    );
     if (existing) {
       map.set(name, existing.id);
       continue;
     }
-    const inserted = await db()
-      .insertInto("ref.markets")
-      .values({ name, region_id: regionId })
-      .returning("id")
-      .executeTakeFirstOrThrow();
+    const inserted = await queryOne<{ id: string }>(
+      "insert into ref.markets (name, region_id) values ($1, $2) returning id",
+      [name, regionId],
+    );
+    if (!inserted) throw new Error(`failed to insert ref.markets row for "${name}"`);
     map.set(name, inserted.id);
   }
   return map;
@@ -78,28 +72,31 @@ async function seedIngredients(): Promise<Map<string, string>> {
   const map = new Map<string, string>();
 
   for (const row of rows) {
-    const canonicalUnit = row.canonical_unit as "g" | "ml";
-    const existing = await db()
-      .selectFrom("ref.ingredients")
-      .select("id")
-      .where("name_sw", "=", row.name_sw)
-      .executeTakeFirst();
+    if (!row.name_sw || !row.name_en || !row.category || !row.canonical_unit) {
+      throw new Error(`malformed ingredients.xlsx row: ${JSON.stringify(row)}`);
+    }
+    if (row.canonical_unit !== "g" && row.canonical_unit !== "ml") {
+      throw new Error(`ingredients.xlsx row "${row.name_sw}" has invalid canonical_unit "${row.canonical_unit}" (must be g or ml)`);
+    }
+
+    const existing = await queryOne<{ id: string }>("select id from ref.ingredients where name_sw = $1", [row.name_sw]);
 
     if (existing) {
-      await db()
-        .updateTable("ref.ingredients")
-        .set({ name_en: row.name_en, category: row.category, canonical_unit: canonicalUnit })
-        .where("id", "=", existing.id)
-        .execute();
+      await query("update ref.ingredients set name_en = $1, category = $2, canonical_unit = $3 where id = $4", [
+        row.name_en,
+        row.category,
+        row.canonical_unit,
+        existing.id,
+      ]);
       map.set(row.name_sw, existing.id);
       continue;
     }
 
-    const inserted = await db()
-      .insertInto("ref.ingredients")
-      .values({ name_sw: row.name_sw, name_en: row.name_en, category: row.category, canonical_unit: canonicalUnit })
-      .returning("id")
-      .executeTakeFirstOrThrow();
+    const inserted = await queryOne<{ id: string }>(
+      "insert into ref.ingredients (name_sw, name_en, category, canonical_unit) values ($1, $2, $3, $4) returning id",
+      [row.name_sw, row.name_en, row.category, row.canonical_unit],
+    );
+    if (!inserted) throw new Error(`failed to insert ref.ingredients row for "${row.name_sw}"`);
     map.set(row.name_sw, inserted.id);
   }
   return map;
@@ -114,29 +111,22 @@ async function seedIngredientUnits(ingredientIds: Map<string, string>, marketIds
   let count = 0;
 
   for (const row of rows) {
+    if (!row.ingredient_name_sw || !row.unit_name_sw || !row.market || !row.grams_per_unit) {
+      throw new Error(`malformed ingredient_units.xlsx row: ${JSON.stringify(row)}`);
+    }
     const ingredientId = ingredientIds.get(row.ingredient_name_sw);
     if (!ingredientId) throw new Error(`ingredient_units references unknown ingredient "${row.ingredient_name_sw}"`);
     const marketId = marketIds.get(row.market);
     if (!marketId) throw new Error(`ingredient_units references unknown market "${row.market}"`);
     const source = row.field_verified === "YES" ? "field" : "ops";
 
-    await db()
-      .insertInto("ref.ingredient_units")
-      .values({
-        ingredient_id: ingredientId,
-        market_id: marketId,
-        unit_name_sw: row.unit_name_sw,
-        grams_per_unit: row.grams_per_unit,
-        valid_from: SEED_EFFECTIVE_DATE,
-        source,
-      })
-      .onConflict((oc) =>
-        oc.columns(["ingredient_id", "market_id", "unit_name_sw", "valid_from"]).doUpdateSet({
-          grams_per_unit: row.grams_per_unit,
-          source,
-        }),
-      )
-      .execute();
+    await query(
+      `insert into ref.ingredient_units (ingredient_id, market_id, unit_name_sw, grams_per_unit, valid_from, source)
+       values ($1, $2, $3, $4, $5, $6)
+       on conflict (ingredient_id, market_id, unit_name_sw, valid_from)
+       do update set grams_per_unit = excluded.grams_per_unit, source = excluded.source`,
+      [ingredientId, marketId, row.unit_name_sw, row.grams_per_unit, SEED_EFFECTIVE_DATE, source],
+    );
     count++;
   }
   return count;
@@ -148,22 +138,24 @@ async function seedBaseRecipes(ingredientIds: Map<string, string>): Promise<{ re
   let recipeIngredientCount = 0;
 
   for (const row of rows) {
+    if (!row.recipe_name_sw || !row.recipe_name_en || !row.ingredient_name_sw || !row.qty_per_10_plates_g) {
+      throw new Error(`malformed base_recipes.xlsx row: ${JSON.stringify(row)}`);
+    }
+
     let recipeId = recipeIds.get(row.recipe_name_sw);
     if (!recipeId) {
-      const existing = await db()
-        .selectFrom("ref.base_recipes")
-        .select("id")
-        .where("name_sw", "=", row.recipe_name_sw)
-        .executeTakeFirst();
+      const existing = await queryOne<{ id: string }>("select id from ref.base_recipes where name_sw = $1", [
+        row.recipe_name_sw,
+      ]);
 
       if (existing) {
         recipeId = existing.id;
       } else {
-        const inserted = await db()
-          .insertInto("ref.base_recipes")
-          .values({ name_sw: row.recipe_name_sw, name_en: row.recipe_name_en, base_plates: 10 })
-          .returning("id")
-          .executeTakeFirstOrThrow();
+        const inserted = await queryOne<{ id: string }>(
+          "insert into ref.base_recipes (name_sw, name_en, base_plates) values ($1, $2, 10) returning id",
+          [row.recipe_name_sw, row.recipe_name_en],
+        );
+        if (!inserted) throw new Error(`failed to insert ref.base_recipes row for "${row.recipe_name_sw}"`);
         recipeId = inserted.id;
       }
       recipeIds.set(row.recipe_name_sw, recipeId);
@@ -172,21 +164,13 @@ async function seedBaseRecipes(ingredientIds: Map<string, string>): Promise<{ re
     const ingredientId = ingredientIds.get(row.ingredient_name_sw);
     if (!ingredientId) throw new Error(`base_recipes references unknown ingredient "${row.ingredient_name_sw}"`);
 
-    await db()
-      .insertInto("ref.base_recipe_ingredients")
-      .values({
-        recipe_id: recipeId,
-        ingredient_id: ingredientId,
-        qty_per_base: row.qty_per_10_plates_g,
-        is_optional: row.is_optional === "TRUE",
-      })
-      .onConflict((oc) =>
-        oc.columns(["recipe_id", "ingredient_id"]).doUpdateSet({
-          qty_per_base: row.qty_per_10_plates_g,
-          is_optional: row.is_optional === "TRUE",
-        }),
-      )
-      .execute();
+    await query(
+      `insert into ref.base_recipe_ingredients (recipe_id, ingredient_id, qty_per_base, is_optional)
+       values ($1, $2, $3, $4)
+       on conflict (recipe_id, ingredient_id)
+       do update set qty_per_base = excluded.qty_per_base, is_optional = excluded.is_optional`,
+      [recipeId, ingredientId, row.qty_per_10_plates_g, row.is_optional === "TRUE"],
+    );
     recipeIngredientCount++;
   }
 
@@ -196,31 +180,30 @@ async function seedBaseRecipes(ingredientIds: Map<string, string>): Promise<{ re
 async function printSpotChecks(): Promise<void> {
   console.log("\n--- spot checks ---");
 
-  const pilau = await db()
-    .selectFrom("ref.base_recipes as r")
-    .innerJoin("ref.base_recipe_ingredients as ri", "ri.recipe_id", "r.id")
-    .innerJoin("ref.ingredients as i", "i.id", "ri.ingredient_id")
-    .select(["r.name_sw as recipe", "i.name_sw as ingredient", "ri.qty_per_base"])
-    .where("r.name_sw", "=", "Pilau ya nyama")
-    .orderBy("ri.qty_per_base", "desc")
-    .execute();
+  const pilau = await query(
+    `select r.name_sw as recipe, i.name_sw as ingredient, ri.qty_per_base
+     from ref.base_recipes r
+     join ref.base_recipe_ingredients ri on ri.recipe_id = r.id
+     join ref.ingredients i on i.id = ri.ingredient_id
+     where r.name_sw = $1
+     order by ri.qty_per_base desc`,
+    ["Pilau ya nyama"],
+  );
   console.log("1) Pilau ya nyama ingredients (qty per 10 plates, g):");
   console.table(pilau);
 
-  const riceUnits = await db()
-    .selectFrom("ref.ingredient_units as u")
-    .innerJoin("ref.ingredients as i", "i.id", "u.ingredient_id")
-    .innerJoin("ref.markets as m", "m.id", "u.market_id")
-    .select(["m.name as market", "u.unit_name_sw", "u.grams_per_unit"])
-    .where("i.name_sw", "=", "Mchele")
-    .execute();
+  const riceUnits = await query(
+    `select m.name as market, u.unit_name_sw, u.grams_per_unit
+     from ref.ingredient_units u
+     join ref.ingredients i on i.id = u.ingredient_id
+     join ref.markets m on m.id = u.market_id
+     where i.name_sw = $1`,
+    ["Mchele"],
+  );
   console.log("2) Mchele (rice) informal units per market:");
   console.table(riceUnits);
 
-  const counts = await db()
-    .selectFrom("ref.markets")
-    .select(({ fn }) => [fn.count<number>("id").as("markets")])
-    .executeTakeFirst();
+  const counts = await queryOne<{ markets: string }>("select count(*) as markets from ref.markets");
   console.log("3) total markets seeded:", counts?.markets);
 }
 
@@ -243,7 +226,7 @@ async function main(): Promise<void> {
   console.log(`base_recipes: ${recipes}, base_recipe_ingredients: ${recipeIngredients}`);
 
   await printSpotChecks();
-  await closeDb();
+  await closePool();
   console.log("\nFaida seed loader — done");
 }
 

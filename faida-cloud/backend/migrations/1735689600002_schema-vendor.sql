@@ -1,3 +1,5 @@
+-- Up Migration
+
 -- DOC 05 §3 — schema: vendor
 create schema if not exists vendor;
 
@@ -42,3 +44,7 @@ create table vendor.rewards_ledger (
   ref_id uuid,
   created_at timestamptz default now()
 );
+
+-- Down Migration
+
+drop schema if exists vendor cascade;

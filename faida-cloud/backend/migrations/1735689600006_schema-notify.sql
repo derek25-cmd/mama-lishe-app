@@ -1,3 +1,5 @@
+-- Up Migration
+
 -- DOC 05 §7 — schema: notify
 create schema if not exists notify;
 
@@ -20,3 +22,7 @@ create table notify.preferences (
   quiet_start time,
   quiet_end time
 );
+
+-- Down Migration
+
+drop schema if exists notify cascade;

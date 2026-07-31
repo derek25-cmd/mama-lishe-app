@@ -1,3 +1,5 @@
+-- Up Migration
+
 -- DOC 05 §7 — schema: audit
 create schema if not exists audit;
 
@@ -44,3 +46,7 @@ create trigger audit_log_hash_chain
 -- Append-only: forbid UPDATE/DELETE at the role level. Revoked from PUBLIC;
 -- application roles are granted INSERT/SELECT only in V9.
 revoke update, delete on audit.log from public;
+
+-- Down Migration
+
+drop schema if exists audit cascade;

@@ -1,3 +1,5 @@
+-- Up Migration
+
 -- DOC 05 §6 — schema: price
 create schema if not exists price;
 
@@ -38,3 +40,7 @@ create table price.forecasts ( -- ML output
   model_version text not null,
   primary key (market_id, ingredient_id, week_start)
 );
+
+-- Down Migration
+
+drop schema if exists price cascade;

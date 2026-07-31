@@ -1,3 +1,5 @@
+-- Up Migration
+
 -- DOC 05 §2 — schema: ref (reference data, ops-owned)
 create extension if not exists pgcrypto;
 create extension if not exists pg_trgm;
@@ -59,3 +61,7 @@ create table ref.base_recipe_ingredients (
   is_optional boolean default false,
   primary key (recipe_id, ingredient_id)
 );
+
+-- Down Migration
+
+drop schema if exists ref cascade;

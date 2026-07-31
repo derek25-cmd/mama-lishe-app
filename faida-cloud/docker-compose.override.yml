@@ -12,3 +12,9 @@ services:
     ports: !override ["80:80"]
     volumes: !override
       - ./nginx/nginx.local.conf:/etc/nginx/nginx.conf:ro
+
+  # Loopback-only (never the LAN interface) so migrations/seed/psql can run
+  # from the host during development without opening Postgres to the network.
+  # docker-compose.yml deliberately has no ports: for postgres at all.
+  postgres:
+    ports: ["127.0.0.1:5432:5432"]

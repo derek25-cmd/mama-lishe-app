@@ -1,3 +1,5 @@
+-- Up Migration
+
 -- DOC 05 §5 — schema: pos
 create schema if not exists pos;
 
@@ -67,3 +69,7 @@ create table pos.daily_summaries (
   closed_at timestamptz,
   primary key (vendor_id, summary_date)
 );
+
+-- Down Migration
+
+drop schema if exists pos cascade;

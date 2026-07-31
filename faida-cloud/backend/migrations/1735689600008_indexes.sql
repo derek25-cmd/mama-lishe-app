@@ -1,3 +1,5 @@
+-- Up Migration
+
 -- DOC 05 §8 — indexing strategy
 
 -- POS hot paths
@@ -20,3 +22,13 @@ create index recipes_trgm on costing.vendor_recipes using gin (name_sw gin_trgm_
 
 -- Scale plan: monthly partitions on pos.sales beyond ~5M rows; BRIN on sold_at
 -- (deferred until partitioning is warranted — tracked, not implemented at pilot scale)
+
+-- Down Migration
+
+drop index if exists pos.sales_vendor_day;
+drop index if exists pos.sales_deni_open;
+drop index if exists pos.expenses_vendor_day;
+drop index if exists costing.plans_vendor_date;
+drop index if exists price.subs_agg;
+drop index if exists price.prices_lookup;
+drop index if exists costing.recipes_trgm;

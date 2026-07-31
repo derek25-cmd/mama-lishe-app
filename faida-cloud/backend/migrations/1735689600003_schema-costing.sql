@@ -1,3 +1,5 @@
+-- Up Migration
+
 -- DOC 05 §4 — schema: costing
 create schema if not exists costing;
 
@@ -52,3 +54,7 @@ create table costing.cook_plan_shopping (
   actual_cost_tzs integer, -- confirmed -> feeds price.submissions
   bought boolean default false
 );
+
+-- Down Migration
+
+drop schema if exists costing cascade;

@@ -1,3 +1,5 @@
+-- Up Migration
+
 -- DOC 05 §11 — Integrity, Retention & RLS
 --
 -- Design note (not spelled out verbatim in DOC 05, applied consistently):
@@ -198,3 +200,60 @@ grant select, insert, update on notify.preferences to faida_app;
 -- ---------- audit (ops/system only, append-only) ----------
 grant usage on schema audit to faida_app;
 grant select, insert on audit.log to faida_app; -- update/delete already revoked from PUBLIC in V7
+
+-- Down Migration
+
+drop policy if exists vendors_self on vendor.vendors;
+alter table vendor.vendors disable row level security;
+
+drop policy if exists branches_self on vendor.branches;
+alter table vendor.branches disable row level security;
+
+drop policy if exists devices_self on vendor.devices;
+alter table vendor.devices disable row level security;
+
+drop policy if exists rewards_self on vendor.rewards_ledger;
+alter table vendor.rewards_ledger disable row level security;
+
+drop policy if exists vendor_recipes_self on costing.vendor_recipes;
+alter table costing.vendor_recipes disable row level security;
+
+drop policy if exists vendor_recipe_ingredients_self on costing.vendor_recipe_ingredients;
+alter table costing.vendor_recipe_ingredients disable row level security;
+
+drop policy if exists cook_plans_self on costing.cook_plans;
+alter table costing.cook_plans disable row level security;
+
+drop policy if exists cook_plan_items_self on costing.cook_plan_items;
+alter table costing.cook_plan_items disable row level security;
+
+drop policy if exists cook_plan_shopping_self on costing.cook_plan_shopping;
+alter table costing.cook_plan_shopping disable row level security;
+
+drop policy if exists sales_self on pos.sales;
+alter table pos.sales disable row level security;
+
+drop policy if exists deni_customers_self on pos.deni_customers;
+alter table pos.deni_customers disable row level security;
+
+drop policy if exists deni_payments_self on pos.deni_payments;
+alter table pos.deni_payments disable row level security;
+
+drop policy if exists expenses_self on pos.expenses;
+alter table pos.expenses disable row level security;
+
+drop policy if exists daily_summaries_self on pos.daily_summaries;
+alter table pos.daily_summaries disable row level security;
+
+drop policy if exists submissions_self on price.submissions;
+alter table price.submissions disable row level security;
+
+drop policy if exists notifications_self on notify.notifications;
+alter table notify.notifications disable row level security;
+
+drop policy if exists preferences_self on notify.preferences;
+alter table notify.preferences disable row level security;
+
+-- revokes all grants made to the role, then the role itself can be dropped
+drop owned by faida_app;
+drop role if exists faida_app;

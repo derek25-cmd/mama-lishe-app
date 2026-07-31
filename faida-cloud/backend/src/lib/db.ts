@@ -1,92 +1,75 @@
-import { Kysely, PostgresDialect, type Generated } from "kysely";
-import pg from "pg";
+import pg, { type PoolClient, type QueryResultRow } from "pg";
 
-// Typed schema surface for the tables the seed loader and costing/vendor
-// modules touch so far (DOC 05 §2-§4). Extended as later tasks add routes —
-// deliberately not the *whole* schema up front.
-export interface Database {
-  "ref.regions": {
-    id: Generated<string>;
-    name: string;
-    code: string;
-  };
-  "ref.markets": {
-    id: Generated<string>;
-    region_id: string;
-    name: string;
-    lat: number | null;
-    lng: number | null;
-    geofence_radius_m: Generated<number | null>;
-    is_active: Generated<boolean>;
-  };
-  "ref.ingredients": {
-    id: Generated<string>;
-    name_sw: string;
-    name_en: string;
-    category: string;
-    canonical_unit: "g" | "ml";
-    is_active: Generated<boolean>;
-  };
-  "ref.ingredient_units": {
-    id: Generated<string>;
-    ingredient_id: string;
-    market_id: string | null;
-    unit_name_sw: string;
-    grams_per_unit: number;
-    valid_from: Generated<string>;
-    valid_to: string | null;
-    source: Generated<string>;
-  };
-  "ref.base_recipes": {
-    id: Generated<string>;
-    name_sw: string;
-    name_en: string;
-    category: string | null;
-    base_plates: Generated<number>;
-    version: Generated<number>;
-    is_active: Generated<boolean>;
-  };
-  "ref.base_recipe_ingredients": {
-    recipe_id: string;
-    ingredient_id: string;
-    qty_per_base: number;
-    is_optional: Generated<boolean>;
-  };
-  "vendor.vendors": {
-    id: string;
-    phone: string;
-    display_name: string;
-    business_type: "mama_lishe" | "duka" | "other";
-    market_id: string | null;
-    region_id: string | null;
-    language: Generated<string>;
-    target_margin_pct: Generated<number>;
-    points: Generated<number>;
-    status: Generated<string>;
-    consent_pdpa_at: Date | null;
-    created_at: Generated<Date>;
-  };
-}
+const { Pool } = pg;
 
-let instance: Kysely<Database> | undefined;
+let pool: pg.Pool | undefined;
 
-// A single process-wide pool. Callers that need per-request RLS context
-// (SET ROLE / app.vendor_id) must use withVendorContext() below rather than
-// running queries directly against this instance.
-export function db(): Kysely<Database> {
-  if (!instance) {
+// A single process-wide pool, connected as the owning role (POSTGRES_USER
+// from DATABASE_URL) — table owner, bypasses RLS. Fine for migrations, the
+// seed loader, and other ops-only code. Anything handling a vendor request
+// must go through withVendorContext() below instead, so RLS (DOC 05 §11)
+// actually engages.
+export function getPool(): pg.Pool {
+  if (!pool) {
     const connectionString = process.env.DATABASE_URL;
     if (!connectionString) throw new Error("DATABASE_URL is not set");
-    instance = new Kysely<Database>({
-      dialect: new PostgresDialect({ pool: new pg.Pool({ connectionString }) }),
-    });
+    pool = new Pool({ connectionString });
   }
-  return instance;
+  return pool;
 }
 
-export async function closeDb(): Promise<void> {
-  if (instance) {
-    await instance.destroy();
-    instance = undefined;
+export async function closePool(): Promise<void> {
+  if (pool) {
+    await pool.end();
+    pool = undefined;
+  }
+}
+
+// Typed query helper. Parameterized queries only — no string-built SQL.
+export async function query<T extends QueryResultRow = QueryResultRow>(
+  text: string,
+  params: unknown[] = [],
+): Promise<T[]> {
+  const result = await getPool().query<T>(text, params);
+  return result.rows;
+}
+
+export async function queryOne<T extends QueryResultRow = QueryResultRow>(
+  text: string,
+  params: unknown[] = [],
+): Promise<T | null> {
+  const rows = await query<T>(text, params);
+  return rows[0] ?? null;
+}
+
+export interface VendorContext {
+  vendorId: string;
+  role?: string; // JWT role claim, e.g. 'vendor' | 'ops_admin'
+}
+
+// Runs `fn` inside a transaction with `SET LOCAL ROLE faida_app` plus the
+// app.vendor_id / app.role session variables RLS policies key off (DOC 05
+// §11 + the faida_app role granted in the RLS migration). SET LOCAL scopes
+// both to the transaction — they're gone on commit/rollback, so nothing
+// leaks across pooled connections. Every request handler that touches
+// vendor-scoped tables must go through this, never getPool()/query() directly.
+export async function withVendorContext<T>(
+  ctx: VendorContext,
+  fn: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await getPool().connect();
+  try {
+    await client.query("begin");
+    await client.query("set local role faida_app");
+    await client.query("select set_config('app.vendor_id', $1, true)", [ctx.vendorId]);
+    await client.query("select set_config('app.role', $1, true)", [ctx.role ?? ""]);
+    const result = await fn(client);
+    await client.query("commit");
+    return result;
+  } catch (err) {
+    await client.query("rollback");
+    throw err;
+  } finally {
+    client.release();
   }
 }
