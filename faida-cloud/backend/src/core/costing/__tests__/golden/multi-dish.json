@@ -1,0 +1,91 @@
+{
+  "lines": [
+    {
+      "ingredient_id": "beans",
+      "name_sw": "Maharage",
+      "qty_canonical_g": 3000,
+      "display_qty": 3,
+      "display_unit": "kg",
+      "unit_price_tzs": 3200,
+      "line_cost_tzs": 9600,
+      "price_confidence": "high",
+      "is_estimate": false
+    },
+    {
+      "ingredient_id": "meat",
+      "name_sw": "Nyama ya ng'ombe",
+      "qty_canonical_g": 18000,
+      "display_qty": 18,
+      "display_unit": "kg",
+      "unit_price_tzs": 12000,
+      "line_cost_tzs": 216000,
+      "price_confidence": "high",
+      "is_estimate": false
+    },
+    {
+      "ingredient_id": "oil",
+      "name_sw": "Mafuta ya kupikia",
+      "qty_canonical_g": 3600,
+      "display_qty": 3,
+      "display_unit": "chupa",
+      "unit_price_tzs": 6500,
+      "line_cost_tzs": 26000,
+      "price_confidence": "high",
+      "is_estimate": false
+    },
+    {
+      "ingredient_id": "onion",
+      "name_sw": "Vitunguu",
+      "qty_canonical_g": 6000,
+      "display_qty": 6,
+      "display_unit": "kilo",
+      "unit_price_tzs": 1500,
+      "line_cost_tzs": 9000,
+      "price_confidence": "high",
+      "is_estimate": false
+    },
+    {
+      "ingredient_id": "pilau_masala",
+      "name_sw": "Viungo vya pilau",
+      "qty_canonical_g": 600,
+      "display_qty": 1,
+      "display_unit": "kiasi",
+      "unit_price_tzs": 8000,
+      "line_cost_tzs": 12000,
+      "price_confidence": "high",
+      "is_estimate": false
+    },
+    {
+      "ingredient_id": "rice",
+      "name_sw": "Mchele",
+      "qty_canonical_g": 16500,
+      "display_qty": 16.5,
+      "display_unit": "kg",
+      "unit_price_tzs": 2800,
+      "line_cost_tzs": 46200,
+      "price_confidence": "high",
+      "is_estimate": false
+    }
+  ],
+  "dishes": [
+    {
+      "recipe_id": "pilau_ya_nyama",
+      "plates": 60,
+      "dish_cost_tzs": 292267,
+      "cost_per_plate_tzs": 4872,
+      "recommended_price_tzs": 7500,
+      "achieved_margin_pct": 35.040000000000006
+    },
+    {
+      "recipe_id": "wali_maharage",
+      "plates": 30,
+      "dish_cost_tzs": 26533,
+      "cost_per_plate_tzs": 885,
+      "recommended_price_tzs": 1500,
+      "achieved_margin_pct": 41
+    }
+  ],
+  "total_cost_tzs": 318800,
+  "price_week": "2026-08-04",
+  "warnings": []
+}

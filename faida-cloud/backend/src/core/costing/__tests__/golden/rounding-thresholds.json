@@ -1,0 +1,112 @@
+{
+  "fungu_just_below_2": {
+    "ingredient_id": "onion",
+    "name_sw": "Vitunguu",
+    "qty_canonical_g": 497.5,
+    "display_qty": 2,
+    "display_unit": "fungu",
+    "unit_price_tzs": 1500,
+    "line_cost_tzs": 750,
+    "price_confidence": "high",
+    "is_estimate": false
+  },
+  "fungu_just_above_2": {
+    "ingredient_id": "onion",
+    "name_sw": "Vitunguu",
+    "qty_canonical_g": 502.5,
+    "display_qty": 3,
+    "display_unit": "fungu",
+    "unit_price_tzs": 1500,
+    "line_cost_tzs": 1125,
+    "price_confidence": "high",
+    "is_estimate": false
+  },
+  "meat_just_below_step": {
+    "ingredient_id": "meat",
+    "name_sw": "Nyama ya ng'ombe",
+    "qty_canonical_g": 249,
+    "display_qty": 0.25,
+    "display_unit": "kg",
+    "unit_price_tzs": 12000,
+    "line_cost_tzs": 3000,
+    "price_confidence": "high",
+    "is_estimate": false
+  },
+  "meat_just_above_step": {
+    "ingredient_id": "meat",
+    "name_sw": "Nyama ya ng'ombe",
+    "qty_canonical_g": 260,
+    "display_qty": 0.5,
+    "display_unit": "kg",
+    "unit_price_tzs": 12000,
+    "line_cost_tzs": 6000,
+    "price_confidence": "high",
+    "is_estimate": false
+  },
+  "rice_just_below_step": {
+    "ingredient_id": "rice",
+    "name_sw": "Mchele",
+    "qty_canonical_g": 490,
+    "display_qty": 0.5,
+    "display_unit": "kg",
+    "unit_price_tzs": 2800,
+    "line_cost_tzs": 1400,
+    "price_confidence": "high",
+    "is_estimate": false
+  },
+  "rice_just_above_step": {
+    "ingredient_id": "rice",
+    "name_sw": "Mchele",
+    "qty_canonical_g": 510,
+    "display_qty": 1,
+    "display_unit": "kg",
+    "unit_price_tzs": 2800,
+    "line_cost_tzs": 2800,
+    "price_confidence": "high",
+    "is_estimate": false
+  },
+  "oil_just_below_1L": {
+    "ingredient_id": "oil",
+    "name_sw": "Mafuta ya kupikia",
+    "qty_canonical_g": 1000,
+    "display_qty": 1,
+    "display_unit": "chupa",
+    "unit_price_tzs": 6500,
+    "line_cost_tzs": 6500,
+    "price_confidence": "high",
+    "is_estimate": false
+  },
+  "oil_just_above_1L": {
+    "ingredient_id": "oil",
+    "name_sw": "Mafuta ya kupikia",
+    "qty_canonical_g": 1010,
+    "display_qty": 2,
+    "display_unit": "chupa",
+    "unit_price_tzs": 6500,
+    "line_cost_tzs": 9750,
+    "price_confidence": "high",
+    "is_estimate": false
+  },
+  "onion_just_below_kilo_switch": {
+    "ingredient_id": "onion",
+    "name_sw": "Vitunguu",
+    "qty_canonical_g": 995,
+    "display_qty": 4,
+    "display_unit": "fungu",
+    "unit_price_tzs": 1500,
+    "line_cost_tzs": 1500,
+    "price_confidence": "high",
+    "is_estimate": false
+  },
+  "onion_just_above_kilo_switch": {
+    "ingredient_id": "onion",
+    "name_sw": "Vitunguu",
+    "qty_canonical_g": 1005,
+    "display_qty": 2,
+    "display_unit": "kilo",
+    "unit_price_tzs": 1500,
+    "line_cost_tzs": 3000,
+    "price_confidence": "high",
+    "is_estimate": false
+  }
+}

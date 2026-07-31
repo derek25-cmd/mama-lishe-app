@@ -1,0 +1,26 @@
+{
+  "lines": [
+    {
+      "ingredient_id": "cabbage",
+      "total_qty_g": 1000,
+      "contributions": [
+        {
+          "plan_index": 0,
+          "recipe_id": "r",
+          "qty_g": 1000,
+          "plates": 10
+        }
+      ],
+      "price_per_kg_tzs": 0,
+      "confidence": "none",
+      "is_estimate": true
+    }
+  ],
+  "warnings": [
+    {
+      "code": "MISSING_PRICE",
+      "ingredient_id": "cabbage",
+      "message": "No price available for cabbage in market, region, or forecast tiers."
+    }
+  ]
+}

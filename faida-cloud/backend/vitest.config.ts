@@ -5,7 +5,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/core/costing/**/*.ts"],
-      exclude: ["src/core/costing/**/*.test.ts", "src/core/costing/__fixtures__/**"],
+      exclude: ["src/core/costing/**/*.test.ts", "src/core/costing/__tests__/**"],
       thresholds: {
         lines: 100,
         statements: 100,

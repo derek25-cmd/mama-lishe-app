@@ -1,0 +1,24 @@
+{
+  "single_dish_60_plates": {
+    "ingredient_id": "pilau_masala",
+    "name_sw": "Viungo vya pilau",
+    "qty_canonical_g": 600,
+    "display_qty": 1,
+    "display_unit": "kiasi",
+    "unit_price_tzs": 8000,
+    "line_cost_tzs": 12000,
+    "price_confidence": "high",
+    "is_estimate": false
+  },
+  "shared_across_two_dishes": {
+    "ingredient_id": "pilau_masala",
+    "name_sw": "Viungo vya pilau",
+    "qty_canonical_g": 900,
+    "display_qty": 1,
+    "display_unit": "kiasi",
+    "unit_price_tzs": 8000,
+    "line_cost_tzs": 16000,
+    "price_confidence": "high",
+    "is_estimate": false
+  }
+}

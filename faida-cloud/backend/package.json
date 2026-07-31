@@ -15,7 +15,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "test:costing": "vitest run src/core/costing",
+    "test:costing": "vitest run src/core/costing --coverage",
     "test:auth": "vitest run --config vitest.integration.config.ts --coverage",
     "seed": "tsx scripts/seed.ts",
     "migrate:up": "node-pg-migrate up",

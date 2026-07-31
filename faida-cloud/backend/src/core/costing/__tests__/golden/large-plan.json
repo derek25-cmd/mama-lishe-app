@@ -1,0 +1,72 @@
+{
+  "lines": [
+    {
+      "ingredient_id": "meat",
+      "name_sw": "Nyama ya ng'ombe",
+      "qty_canonical_g": 150000,
+      "display_qty": 150,
+      "display_unit": "kg",
+      "unit_price_tzs": 12000,
+      "line_cost_tzs": 1800000,
+      "price_confidence": "high",
+      "is_estimate": false
+    },
+    {
+      "ingredient_id": "oil",
+      "name_sw": "Mafuta ya kupikia",
+      "qty_canonical_g": 25000,
+      "display_qty": 5,
+      "display_unit": "chupa",
+      "unit_price_tzs": 6500,
+      "line_cost_tzs": 162500,
+      "price_confidence": "high",
+      "is_estimate": false
+    },
+    {
+      "ingredient_id": "onion",
+      "name_sw": "Vitunguu",
+      "qty_canonical_g": 50000,
+      "display_qty": 50,
+      "display_unit": "kilo",
+      "unit_price_tzs": 1500,
+      "line_cost_tzs": 75000,
+      "price_confidence": "high",
+      "is_estimate": false
+    },
+    {
+      "ingredient_id": "pilau_masala",
+      "name_sw": "Viungo vya pilau",
+      "qty_canonical_g": 5000,
+      "display_qty": 1,
+      "display_unit": "kiasi",
+      "unit_price_tzs": 8000,
+      "line_cost_tzs": 100000,
+      "price_confidence": "high",
+      "is_estimate": false
+    },
+    {
+      "ingredient_id": "rice",
+      "name_sw": "Mchele",
+      "qty_canonical_g": 100000,
+      "display_qty": 100,
+      "display_unit": "kg",
+      "unit_price_tzs": 2800,
+      "line_cost_tzs": 280000,
+      "price_confidence": "high",
+      "is_estimate": false
+    }
+  ],
+  "dishes": [
+    {
+      "recipe_id": "pilau_ya_nyama",
+      "plates": 500,
+      "dish_cost_tzs": 2417500,
+      "cost_per_plate_tzs": 4835,
+      "recommended_price_tzs": 8500,
+      "achieved_margin_pct": 43.11764705882353
+    }
+  ],
+  "total_cost_tzs": 2417500,
+  "price_week": "2026-08-04",
+  "warnings": []
+}

@@ -1,0 +1,42 @@
+{
+  "exact_multiple_of_500": [
+    {
+      "recipe_id": "d1",
+      "plates": 10,
+      "dish_cost_tzs": 30000,
+      "cost_per_plate_tzs": 3000,
+      "recommended_price_tzs": 5000,
+      "achieved_margin_pct": 40
+    }
+  ],
+  "snap_pushes_margin_up": [
+    {
+      "recipe_id": "d1",
+      "plates": 60,
+      "dish_cost_tzs": 290100,
+      "cost_per_plate_tzs": 4835,
+      "recommended_price_tzs": 8500,
+      "achieved_margin_pct": 43.11764705882353
+    }
+  ],
+  "zero_margin": [
+    {
+      "recipe_id": "d1",
+      "plates": 3,
+      "dish_cost_tzs": 12345,
+      "cost_per_plate_tzs": 4115,
+      "recommended_price_tzs": 4500,
+      "achieved_margin_pct": 8.55555555555556
+    }
+  ],
+  "high_margin_near_100": [
+    {
+      "recipe_id": "d1",
+      "plates": 10,
+      "dish_cost_tzs": 10000,
+      "cost_per_plate_tzs": 1000,
+      "recommended_price_tzs": 5000,
+      "achieved_margin_pct": 80
+    }
+  ]
+}

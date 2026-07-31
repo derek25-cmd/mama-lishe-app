@@ -13,6 +13,11 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
+      # 100% line/branch/statement/function coverage on the costing engine
+      # is CI-blocking per Phase 3 spec — "a Mama Lishe must be able to
+      # trust these numbers." Runs before the general test suite so a
+      # coverage regression here fails fast.
+      - run: npm run test:costing
       - run: npm test
       # Testcontainers needs Docker, which GitHub's ubuntu-latest runners
       # provide out of the box — no service containers to declare here.
