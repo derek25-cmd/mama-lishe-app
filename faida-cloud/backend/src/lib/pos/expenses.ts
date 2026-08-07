@@ -1,4 +1,5 @@
 import { withVendorContext, type VendorContext } from "@/lib/db";
+import { assertOwnedByVendor } from "@/lib/pos/ownership";
 import type { ExpenseCategory, ExpenseRow } from "@/lib/pos/types";
 
 export interface RecordExpenseInput {
@@ -25,6 +26,10 @@ export async function recordExpense(ctx: VendorContext, input: RecordExpenseInpu
       [ctx.vendorId, input.clientId],
     );
     if (existing.rows[0]) return { expense: existing.rows[0], created: false };
+
+    // See sales.ts's identical check — FK constraints alone don't stop an
+    // expense from linking to another vendor's cook plan.
+    await assertOwnedByVendor(client, "costing.cook_plans", input.planId, ctx.vendorId);
 
     const inserted = await client.query<ExpenseRow>(
       `insert into pos.expenses (vendor_id, client_id, spent_at, category, description, amount_tzs, plan_id)

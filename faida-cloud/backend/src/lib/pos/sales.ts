@@ -1,6 +1,7 @@
 import type { PoolClient } from "pg";
 import { withVendorContext, type VendorContext } from "@/lib/db";
 import { upsertDeniCustomerInTx } from "@/lib/pos/deni";
+import { assertOwnedByVendor } from "@/lib/pos/ownership";
 import { SaleNotFoundError, type PaymentMethod, type SaleRow, type ServiceWarning } from "@/lib/pos/types";
 
 export interface RecordSaleInput {
@@ -46,6 +47,12 @@ export async function recordSale(ctx: VendorContext, input: RecordSaleInput): Pr
     if (input.paymentMethod === "deni" && !input.deniCustomerName) {
       throw new Error("deniCustomerName is required when paymentMethod is 'deni'");
     }
+
+    // FK constraints alone don't stop a sale from linking to another
+    // vendor's branch/recipe (Postgres FK checks bypass RLS) — verify
+    // explicitly. See ForeignRowNotOwnedError.
+    await assertOwnedByVendor(client, "vendor.branches", input.branchId, ctx.vendorId);
+    await assertOwnedByVendor(client, "costing.vendor_recipes", input.recipeId, ctx.vendorId);
 
     const warnings: ServiceWarning[] = [];
     const expectedTotal = input.quantity * input.unitPriceTzs;
@@ -123,4 +130,25 @@ export async function voidSaleInTx(
     [reason, saleId, vendorId],
   );
   return updated.rows[0]!;
+}
+
+// The sync contract's sale_void records (Task 4) reference the sale by its
+// CLIENT id — a purely offline batch has no way to know a sale's
+// server-generated id before it has synced. Returns null rather than
+// throwing when no such sale exists, since that's a normal (if unusual)
+// sync outcome the caller reports as 'rejected: sale_not_found', not a
+// server error.
+export async function voidSaleByClientIdInTx(
+  client: PoolClient,
+  vendorId: string,
+  saleClientId: string,
+  reason: string,
+): Promise<SaleRow | null> {
+  const current = await client.query<SaleRow>(
+    `select ${SALE_COLUMNS} from pos.sales where vendor_id = $1 and client_id = $2`,
+    [vendorId, saleClientId],
+  );
+  const row = current.rows[0];
+  if (!row) return null;
+  return voidSaleInTx(client, vendorId, row.id, reason);
 }

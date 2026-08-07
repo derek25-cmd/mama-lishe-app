@@ -103,3 +103,21 @@ export class DeniCustomerNotFoundError extends Error {
     this.name = "DeniCustomerNotFoundError";
   }
 }
+
+// Postgres FK constraints check row existence as the table owner and do
+// NOT respect the referencing session's RLS policy — a vendor could send
+// another vendor's recipe_id/branch_id/plan_id and the FK alone would
+// happily accept it, silently linking her sale/expense to a stranger's
+// row. Every id a client supplies for one of these columns must be
+// explicitly verified to belong to ctx.vendorId before use (see
+// assertOwnedByVendor in ownership.ts) — this is exactly the vector Phase
+// 4's cross-tenant sync test probes.
+export class ForeignRowNotOwnedError extends Error {
+  constructor(
+    public readonly table: string,
+    public readonly id: string,
+  ) {
+    super(`${table} row ${id} does not belong to this vendor`);
+    this.name = "ForeignRowNotOwnedError";
+  }
+}

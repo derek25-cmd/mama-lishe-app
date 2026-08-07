@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { NextResponse } from "next/server";
 import { requireAuth, requireRole } from "@/lib/auth/middleware";
-import { recordDeniPayment, DeniBalanceExceededError } from "@/lib/pos";
+import { recordDeniPayment, DeniBalanceExceededError, DeniCustomerNotFoundError } from "@/lib/pos";
 
 const RecordDeniPaymentBody = z.object({
   clientId: z.string().min(1).max(64),
@@ -18,13 +18,13 @@ export const POST = requireAuth(
     }
 
     try {
-      const payment = await recordDeniPayment(ctx, {
+      const result = await recordDeniPayment(ctx, {
         clientId: parsed.data.clientId,
         deniCustomerId: parsed.data.deniCustomerId,
         amountTzs: parsed.data.amountTzs,
         paidAt: new Date(parsed.data.paidAt),
       });
-      return NextResponse.json({ payment });
+      return NextResponse.json({ payment: result.payment }, { status: result.created ? 201 : 200 });
     } catch (err) {
       if (err instanceof DeniBalanceExceededError) {
         return NextResponse.json(
@@ -35,6 +35,9 @@ export const POST = requireAuth(
           },
           { status: 422 },
         );
+      }
+      if (err instanceof DeniCustomerNotFoundError) {
+        return NextResponse.json({ error: "not_found" }, { status: 404 });
       }
       throw err;
     }
