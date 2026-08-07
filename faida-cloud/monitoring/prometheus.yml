@@ -8,3 +8,12 @@ scrape_configs:
   - job_name: prometheus
     static_configs:
       - targets: ["localhost:9090"]
+  # backend/scripts/reconcile.ts (Phase 4 Task 5) pushes here instead of
+  # exposing its own /metrics — it's a nightly script that exits, not a
+  # long-running process a normal scrape could ever catch mid-life.
+  # honor_labels keeps the job/instance labels reconcile.ts set on push
+  # rather than Prometheus overwriting them with this scrape target's own.
+  - job_name: pushgateway
+    honor_labels: true
+    static_configs:
+      - targets: ["pushgateway:9091"]

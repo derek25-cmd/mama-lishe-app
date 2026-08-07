@@ -72,6 +72,46 @@ services:
       timeout: 3s
       retries: 5
 
+  # Phase 4 Task 5 — backend/scripts/reconcile.ts runs as a standalone
+  # script that exits after each run, so an in-process Prometheus counter
+  # would never get scraped. Pushgateway is the standard fix for exactly
+  # this (batch/cron job metrics), and prom-client has built-in support —
+  # no new npm dependency.
+  pushgateway:
+    image: prom/pushgateway:latest
+    restart: unless-stopped
+    networks: [internal]
+
+  # No cron/worker mechanism existed anywhere in this stack before Phase 4
+  # (grepped for it — nothing). This is the minimal addition: reuses the
+  # `build` stage of backend/Dockerfile (which has the full source tree,
+  # devDependencies including tsx, and an already-completed `npm run
+  # build` — the `run` stage's standalone output deliberately excludes
+  # both scripts/ and tsx, so reconcile.ts cannot run there) and busybox
+  # crond, already present in node:22-alpine, to fire the script nightly.
+  # 21:00 UTC = 00:00 Africa/Dar_es_Salaam (EAT, fixed UTC+3) — just after
+  # a vendor's trading day closes.
+  reconcile-cron:
+    build:
+      context: ./backend
+      target: build
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      PUSHGATEWAY_URL: http://pushgateway:9091
+    networks: [internal]
+    depends_on:
+      postgres: { condition: service_healthy }
+      pushgateway: { condition: service_started }
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "0 21 * * * cd /app && npx tsx scripts/reconcile.ts >> /proc/1/fd/1 2>&1" | crontab -
+        crond -f -l 2
+
   prometheus:
     image: prom/prometheus:latest
     restart: unless-stopped
