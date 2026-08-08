@@ -5,7 +5,8 @@ import { voidSaleByClientIdInTx } from "@/lib/pos/sales";
 import { withVendorContext } from "@/lib/db";
 import { recordExpense } from "@/lib/pos/expenses";
 import { upsertDeniCustomer, recordDeniPayment } from "@/lib/pos/deni";
-import { closeDay } from "@/lib/pos/summary";
+import { closeDay, recomputeDailySummary } from "@/lib/pos/summary";
+import { vendorLocalDate } from "@/lib/pos/timezone";
 import { DeniBalanceExceededError, DeniCustomerNotFoundError, ForeignRowNotOwnedError } from "@/lib/pos/types";
 import type { PaymentMethod, ExpenseCategory } from "@/lib/pos/types";
 
@@ -93,19 +94,53 @@ function errorReason(err: unknown): string {
 // Every record is applied through its own withVendorContext call (via the
 // Task 2 service functions), so each one is its own transaction — one
 // record's failure can never roll back another's, per Task 4's spec.
+//
+// A vendor's offline queue can split across multiple separate pushes
+// (POST /sync/push calls), not just multiple batches within one call —
+// Task 4's "day-close records trigger recomputation at the end" only
+// promises that within the batch a day_close arrives in. If that batch
+// happens to sync BEFORE a later push carrying more of that same day's
+// sales/expenses, the summary would otherwise go stale until the nightly
+// reconciliation job (Task 5) eventually catches it. Caught live by the
+// property test: 8 batches from one shuffled/split/retried trading day
+// produced a perfectly correct ledger (every row count, sum, and deni
+// balance matched the single-batch baseline) but a stale summary, because
+// day_close landed in an earlier batch than some of the day's other
+// sales. Fixed here rather than left for reconciliation to paper over:
+// any record that lands for a day whose summary is ALREADY closed
+// triggers an immediate recompute, so a closed summary never goes stale
+// out from under a legitimately late-arriving batch.
 export async function applySyncBatch(ctx: VendorContext, records: SyncRecord[]): Promise<SyncOutcome[]> {
   const ordered = [...records].sort((a, b) => TYPE_TIER[a.type] - TYPE_TIER[b.type]);
   const outcomes: SyncOutcome[] = [];
+  const touchedDates = new Set<string>();
 
   for (const record of ordered) {
     try {
-      outcomes.push(await applyOne(ctx, record));
+      const { outcome, touchedDate } = await applyOne(ctx, record);
+      outcomes.push(outcome);
+      if (touchedDate && outcome.status !== "rejected") touchedDates.add(touchedDate);
     } catch (err) {
       const reason = errorReason(err);
       logger.warn({ vendorId: maskVendorId(ctx.vendorId), clientId: record.clientId, type: record.type, reason }, "sync record rejected");
       outcomes.push({ clientId: record.clientId, status: "rejected", reason });
     }
   }
+
+  for (const date of touchedDates) {
+    const closedAt = await withVendorContext(ctx, async (client) => {
+      const result = await client.query<{ closed_at: Date | null }>(
+        `select closed_at from pos.daily_summaries where vendor_id = $1 and summary_date = $2`,
+        [ctx.vendorId, date],
+      );
+      return result.rows[0]?.closed_at ?? null;
+    });
+    // Undefined overrides for waste/notes: recomputeDailySummary preserves
+    // whatever is already stored for those, exactly like every other
+    // recompute call in this codebase.
+    if (closedAt) await recomputeDailySummary(ctx, date);
+  }
+
   return outcomes;
 }
 
@@ -113,7 +148,16 @@ function maskVendorId(vendorId: string): string {
   return vendorId.length < 8 ? "***" : vendorId.slice(0, 8) + "***";
 }
 
-async function applyOne(ctx: VendorContext, record: SyncRecord): Promise<SyncOutcome> {
+interface AppliedRecord {
+  outcome: SyncOutcome;
+  /** Vendor-local date this record's ledger effect belongs to — set only
+   *  when the outcome isn't 'rejected'. Absent for day_close (it recomputes
+   *  itself directly, nothing more to do) and deni_customer (no ledger
+   *  date to speak of). */
+  touchedDate?: string;
+}
+
+async function applyOne(ctx: VendorContext, record: SyncRecord): Promise<AppliedRecord> {
   switch (record.type) {
     case "sale":
       return applySale(ctx, record.clientId, record.payload as SalePayload);
@@ -130,7 +174,7 @@ async function applyOne(ctx: VendorContext, record: SyncRecord): Promise<SyncOut
   }
 }
 
-async function applySale(ctx: VendorContext, clientId: string, payload: SalePayload): Promise<SyncOutcome> {
+async function applySale(ctx: VendorContext, clientId: string, payload: SalePayload): Promise<AppliedRecord> {
   const result = await recordSale(ctx, {
     clientId,
     soldAt: new Date(payload.soldAt),
@@ -144,7 +188,8 @@ async function applySale(ctx: VendorContext, clientId: string, payload: SalePayl
     deniCustomerName: payload.deniCustomerName ?? null,
   });
 
-  if (result.created) return { clientId, status: "applied", serverId: result.sale.id };
+  const touchedDate = vendorLocalDate(result.sale.sold_at);
+  if (result.created) return { outcome: { clientId, status: "applied", serverId: result.sale.id }, touchedDate };
 
   const existing = result.sale;
   // deniCustomerName is deliberately excluded from the comparison: it's
@@ -162,11 +207,11 @@ async function applySale(ctx: VendorContext, clientId: string, payload: SalePayl
     existing.total_tzs === payload.totalTzs &&
     existing.payment_method === payload.paymentMethod;
 
-  if (matches) return { clientId, status: "duplicate", serverId: existing.id };
-  return { clientId, status: "rejected", serverId: existing.id, reason: "conflict_divergent_payload" };
+  if (matches) return { outcome: { clientId, status: "duplicate", serverId: existing.id }, touchedDate };
+  return { outcome: { clientId, status: "rejected", serverId: existing.id, reason: "conflict_divergent_payload" } };
 }
 
-async function applyExpense(ctx: VendorContext, clientId: string, payload: ExpensePayload): Promise<SyncOutcome> {
+async function applyExpense(ctx: VendorContext, clientId: string, payload: ExpensePayload): Promise<AppliedRecord> {
   const result = await recordExpense(ctx, {
     clientId,
     spentAt: new Date(payload.spentAt),
@@ -176,7 +221,8 @@ async function applyExpense(ctx: VendorContext, clientId: string, payload: Expen
     planId: payload.planId ?? null,
   });
 
-  if (result.created) return { clientId, status: "applied", serverId: result.expense.id };
+  const touchedDate = vendorLocalDate(result.expense.spent_at);
+  if (result.created) return { outcome: { clientId, status: "applied", serverId: result.expense.id }, touchedDate };
 
   const existing = result.expense;
   const matches =
@@ -186,8 +232,8 @@ async function applyExpense(ctx: VendorContext, clientId: string, payload: Expen
     existing.amount_tzs === payload.amountTzs &&
     (existing.plan_id ?? null) === (payload.planId ?? null);
 
-  if (matches) return { clientId, status: "duplicate", serverId: existing.id };
-  return { clientId, status: "rejected", serverId: existing.id, reason: "conflict_divergent_payload" };
+  if (matches) return { outcome: { clientId, status: "duplicate", serverId: existing.id }, touchedDate };
+  return { outcome: { clientId, status: "rejected", serverId: existing.id, reason: "conflict_divergent_payload" } };
 }
 
 // deni_customer records have no client_id-keyed table to conflict against
@@ -202,16 +248,14 @@ async function applyDeniCustomer(
   ctx: VendorContext,
   clientId: string,
   payload: DeniCustomerPayload,
-): Promise<SyncOutcome> {
+): Promise<AppliedRecord> {
   const result = await upsertDeniCustomer(ctx, payload.name, payload.phone ?? null);
   return {
-    clientId,
-    status: result.created ? "applied" : "duplicate",
-    serverId: result.customer.id,
+    outcome: { clientId, status: result.created ? "applied" : "duplicate", serverId: result.customer.id },
   };
 }
 
-async function applyDeniPayment(ctx: VendorContext, clientId: string, payload: DeniPaymentPayload): Promise<SyncOutcome> {
+async function applyDeniPayment(ctx: VendorContext, clientId: string, payload: DeniPaymentPayload): Promise<AppliedRecord> {
   const result = await recordDeniPayment(ctx, {
     clientId,
     deniCustomerId: payload.deniCustomerId ?? null,
@@ -220,14 +264,15 @@ async function applyDeniPayment(ctx: VendorContext, clientId: string, payload: D
     paidAt: new Date(payload.paidAt),
   });
 
-  if (result.created) return { clientId, status: "applied", serverId: result.payment.id };
+  const touchedDate = vendorLocalDate(result.payment.paid_at);
+  if (result.created) return { outcome: { clientId, status: "applied", serverId: result.payment.id }, touchedDate };
 
   const existing = result.payment;
   const matches =
     existing.amount_tzs === payload.amountTzs && existing.paid_at.toISOString() === new Date(payload.paidAt).toISOString();
 
-  if (matches) return { clientId, status: "duplicate", serverId: existing.id };
-  return { clientId, status: "rejected", serverId: existing.id, reason: "conflict_divergent_payload" };
+  if (matches) return { outcome: { clientId, status: "duplicate", serverId: existing.id }, touchedDate };
+  return { outcome: { clientId, status: "rejected", serverId: existing.id, reason: "conflict_divergent_payload" } };
 }
 
 // sale_void has no client_id-keyed table either (voided/void_reason/
@@ -236,11 +281,11 @@ async function applyDeniPayment(ctx: VendorContext, clientId: string, payload: D
 // whose target sale doesn't exist (e.g. that sale was itself rejected
 // earlier in this same batch for a divergent payload) is rejected with
 // sale_not_found rather than silently doing nothing.
-async function applySaleVoid(ctx: VendorContext, clientId: string, payload: SaleVoidPayload): Promise<SyncOutcome> {
+async function applySaleVoid(ctx: VendorContext, clientId: string, payload: SaleVoidPayload): Promise<AppliedRecord> {
   const sale = await withVendorContext(ctx, (client) =>
     voidSaleByClientIdInTx(client, ctx.vendorId, payload.saleClientId, payload.reason),
   );
-  if (!sale) return { clientId, status: "rejected", reason: "sale_not_found" };
+  if (!sale) return { outcome: { clientId, status: "rejected", reason: "sale_not_found" } };
   // voidSaleInTx returns the pre-existing (already-voided) row unchanged
   // when called twice; voided_at not moving is how we'd know it was a
   // no-op, but comparing against "was already true before this call"
@@ -250,7 +295,10 @@ async function applySaleVoid(ctx: VendorContext, clientId: string, payload: Sale
   // sale_void clientId is inherently a client-side retry of the same
   // action, and reporting it as duplicate vs. applied doesn't change what
   // the client needs to do next (nothing, either way).
-  return { clientId, status: "applied", serverId: sale.id };
+  // touchedDate uses the SALE's own sold_at, not this void record's own
+  // clientCreatedAt — a void affects the original sale's day's summary,
+  // not "today".
+  return { outcome: { clientId, status: "applied", serverId: sale.id }, touchedDate: vendorLocalDate(sale.sold_at) };
 }
 
 // day_close has no client_id-keyed table either — closeDay's own
@@ -260,7 +308,7 @@ async function applySaleVoid(ctx: VendorContext, clientId: string, payload: Sale
 // this runs, so the recomputation it triggers sees the complete batch —
 // satisfying "day-close records trigger summary recomputation at the end"
 // through ordering alone, with no separate final pass needed.
-async function applyDayClose(ctx: VendorContext, clientId: string, payload: DayClosePayload): Promise<SyncOutcome> {
+async function applyDayClose(ctx: VendorContext, clientId: string, payload: DayClosePayload): Promise<AppliedRecord> {
   const before = await withVendorContext(ctx, async (client) => {
     const result = await client.query<{ closed_at: Date | null }>(
       `select closed_at from pos.daily_summaries where vendor_id = $1 and summary_date = $2`,
@@ -271,8 +319,13 @@ async function applyDayClose(ctx: VendorContext, clientId: string, payload: DayC
 
   const summary = await closeDay(ctx, payload.date, payload.wastePlates, payload.notes ?? null);
   return {
-    clientId,
-    status: before ? "duplicate" : "applied",
-    serverId: `${summary.vendor_id}:${summary.summary_date}`,
+    outcome: {
+      clientId,
+      status: before ? "duplicate" : "applied",
+      serverId: `${summary.vendor_id}:${summary.summary_date}`,
+    },
+    // No touchedDate: closeDay already recomputed this exact date directly
+    // above, so re-adding it to applySyncBatch's touchedDates set would
+    // only cause a redundant (harmless, but pointless) second recompute.
   };
 }

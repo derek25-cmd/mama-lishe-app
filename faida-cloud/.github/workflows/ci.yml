@@ -24,6 +24,13 @@ jobs:
       # CI-blocking per Phase 2 spec: reuse detection, brute-force lockout,
       # rate limiting, device cap, and the RLS proof all live in this run.
       - run: npm run test:auth
+      # ≥90% coverage on lib/pos/ and the sync route handlers, CI-blocking
+      # per Phase 4 spec. Runs last and takes ~15 minutes on its own — the
+      # 500-iteration sync property test (order/duplication/batching/
+      # retries never change final ledger state) dominates that time, and
+      # is deliberately not shortened: it's the single most important test
+      # in this phase, per the brief that specified it.
+      - run: npm run test:pos
   flutter:
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: mobile } }

@@ -17,6 +17,7 @@
     "test": "vitest run",
     "test:costing": "vitest run src/core/costing --coverage",
     "test:auth": "vitest run --config vitest.integration.config.ts --coverage",
+    "test:pos": "vitest run --config vitest.pos.config.ts --coverage",
     "seed": "tsx scripts/seed.ts",
     "reconcile": "tsx scripts/reconcile.ts",
     "migrate:up": "node-pg-migrate up",
